@@ -2,7 +2,7 @@
 
 ### This project demonstartes a simple Task Tracker.
 
-#### This project was developed using React, Redux, Node, Express, Mongo and ASP.Net Core Web API
+#### This repo contains ASP.Net Core Web API code part of a simple Task Tracker project developed using React, Redux, Node, Express, Mongo and ASP.Net Core Web API
 
 Mongo Cloud DB Link: https://cloud.mongodb.com/v2/624282672a1584029925b671#clusters
 #### Note: Need to update the local IP address on the mongo cloud network access tab before running the App. Otherwise, mongo db will not be accessable from local machine
