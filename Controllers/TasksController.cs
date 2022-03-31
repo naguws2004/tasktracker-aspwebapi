@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Configuration;
 using MongoDB.Driver;
 using System.Collections.Generic;
+using System.Linq;
 using TaskWebAPI.Models;
 
 namespace TaskWebAPI.Controllers
@@ -28,14 +29,14 @@ namespace TaskWebAPI.Controllers
         }
 
         [HttpPost]
-        public JsonResult Post([FromBody] Task task)
+        public JsonResult Post([FromBody] TaskModel task)
         {
             var result = _taskCRUD.InsertTask(task);
             return new JsonResult(result);
         }
 
         [HttpPut]
-        public JsonResult Put([FromBody] Task task)
+        public JsonResult Put([FromBody] TaskModel task)
         {
             var result = _taskCRUD.UpdateTask(task);   
             return new JsonResult(result);
@@ -50,28 +51,9 @@ namespace TaskWebAPI.Controllers
 
         [HttpPost]
         [Route("UpdateTasks")]
-        public JsonResult UpdateTasks([FromBody] List<Task> tasks)
+        public JsonResult UpdateTasks([FromBody] List<TaskModel> tasks)
         {
-            tasks = _taskCRUD.UpdateTasksMarker(tasks);
-
-            foreach (var task in tasks)
-            {
-                switch (task.Marker)
-                {
-                    case UpdateMarker.Insert:
-                        _taskCRUD.InsertTask(task);
-                        break;
-                    case UpdateMarker.Update:
-                        _taskCRUD.UpdateTask(task);
-                        break;
-                    case UpdateMarker.Delete:
-                        _taskCRUD.DeleteTask(task.TaskId);
-                        break;
-                    default:
-                        break;
-                }
-            }
-
+            _taskCRUD.UpdateTasks(tasks);
             return new JsonResult(_taskCRUD.UpdateTasksSuccessMessage());
         }
     }

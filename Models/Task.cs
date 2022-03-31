@@ -3,29 +3,23 @@ using MongoDB.Driver;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
+using TaskWebAPI.Helpers;
 
 namespace TaskWebAPI.Models
 {
-    public enum UpdateMarker
-    {
-        Default = 0,
-        Insert = 1,
-        Update = 2,
-        Delete = 3
-    }
-
     public class Task
     {
-        [IgnoreDataMember]
+        [JsonIgnore]
         public ObjectId Id { get; set; } = ObjectId.Empty;
-        public int TaskId { get; set; } = 0;
-        public string TaskName { get; set; } =  string.Empty;
-        public DateTime TaskDateTime { get; set; } = DateTime.MinValue;
-        public bool Remind { get; set; } = false;
 
-        [IgnoreDataMember]
-        public UpdateMarker Marker { get; set; } = UpdateMarker.Default; 
+        public int TaskId { get; set; } = 0;
+
+        public string TaskName { get; set; } =  string.Empty;
+
+        public DateTime TaskDateTime { get; set; } = DateTime.MinValue;
+
+        public bool Remind { get; set; } = false;
     }
 
     public class TaskCRUD
@@ -37,15 +31,15 @@ namespace TaskWebAPI.Models
             _mongoClient = mongoClient;
         }
 
-        public string InsertTask(Task task)
+        public string InsertTask(TaskModel task)
         {
             int maxTaskId = GetMaxTaskId();
             task.TaskId = maxTaskId + 1;
-            _mongoClient.GetDatabase("TaskTracker").GetCollection<Task>("Tasks").InsertOne(task);
+            _mongoClient.GetDatabase("TaskTracker").GetCollection<TaskModel>("Tasks").InsertOne(task);
             return "New Task Added to Database Successfully.";
         }
 
-        public string UpdateTask(Task task)
+        public string UpdateTask(TaskModel task)
         {
             var updateFilter = Builders<Task>.Filter.Eq("TaskId", task.TaskId);
             var update = Builders<Task>.Update.Set("Remind", task.Remind);
@@ -60,10 +54,37 @@ namespace TaskWebAPI.Models
             return DeleteResultMessage(deleteResult);
         }
 
-        public List<Task> GetTasks()
+        public List<TaskModel> GetTasks()
         {
             var dbList = _mongoClient.GetDatabase("TaskTracker").GetCollection<Task>("Tasks").AsQueryable();
-            return dbList.ToList();
+            List<TaskModel> list = new Converter().Convert(dbList.ToList());
+            return list;
+        }
+
+        public void UpdateTasks(List<TaskModel> tasks)
+        {
+            List<UpdateMarker> markers = UpdateTaskMarker(tasks);
+            var task = new TaskModel();
+
+            foreach (var updateMarker in markers)
+            {
+                switch (updateMarker.Marker)
+                {
+                    case MarkerType.Insert:
+                        task = tasks.FirstOrDefault(x => x.TaskId == updateMarker.TaskId);
+                        InsertTask(task);
+                        break;
+                    case MarkerType.Update:
+                        task = tasks.FirstOrDefault(x => x.TaskId == updateMarker.TaskId);
+                        UpdateTask(task);
+                        break;
+                    case MarkerType.Delete:
+                        DeleteTask(updateMarker.TaskId);
+                        break;
+                    default:
+                        break;
+                }
+            }
         }
 
         public string UpdateTasksSuccessMessage()
@@ -73,36 +94,62 @@ namespace TaskWebAPI.Models
             return taskCounter.ToString() + " Tasks. Database Successfully Updated";
         }
 
-        public List<Task> UpdateTasksMarker(List<Task> tasks)
+        private List<UpdateMarker> UpdateTaskMarker(List<TaskModel> tasks)
         {
+            List<UpdateMarker> updateMarkers = new List<UpdateMarker>();
+
             var dbList = GetTasks();
 
+            UpdateAddAndUpdateMarker(updateMarkers, tasks, dbList);
+            
+            UpdateDeleteMarker(updateMarkers, tasks, dbList);
+
+            return updateMarkers;
+        }
+
+        private List<UpdateMarker> UpdateAddAndUpdateMarker(List<UpdateMarker> updateMarkers, List<TaskModel> tasks, List<TaskModel> dbList)
+        {
             foreach (var task in tasks)
             {
                 if (!dbList.Any(x => x.TaskId == task.TaskId))
                 {
                     // Mark for Insert
-                    task.Marker = UpdateMarker.Insert;
+                    updateMarkers.Add(new UpdateMarker
+                    {
+                        TaskId = task.TaskId,
+                        Marker = MarkerType.Insert
+                    });
                 }
                 else if (dbList.Any(x => x.TaskId == task.TaskId))
                 {
                     // Mark for Update
-                    task.Marker = UpdateMarker.Update;
+                    updateMarkers.Add(new UpdateMarker
+                    {
+                        TaskId = task.TaskId,
+                        Marker = MarkerType.Update
+                    });
                 }
             }
 
+            return updateMarkers;
+        }
+
+        private List<UpdateMarker> UpdateDeleteMarker(List<UpdateMarker> updateMarkers, List<TaskModel> tasks, List<TaskModel> dbList)
+        {
             foreach (var dbTask in dbList)
             {
                 if (!tasks.Any(x => x.TaskId == dbTask.TaskId))
                 {
-                    // Add and Mark for Delete
-                    var task = dbTask;
-                    task.Marker = UpdateMarker.Delete;
-                    tasks.Add(task);
+                    // Mark for Delete
+                    updateMarkers.Add(new UpdateMarker
+                    {
+                        TaskId = dbTask.TaskId,
+                        Marker = MarkerType.Delete
+                    });
                 }
             }
 
-            return tasks;
+            return updateMarkers;
         }
 
         private int GetMaxTaskId()
