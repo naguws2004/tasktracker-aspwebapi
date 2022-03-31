@@ -1,0 +1,37 @@
+# This is a basic workflow to get started with Actions
+name: Build Web API
+ 
+on: [push]
+ 
+jobs:
+    
+  build:
+    runs-on: windows-2019
+ 
+    steps:
+    - uses: actions/checkout@v3
+      name: Checkout Code
+     
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v2
+      with:
+        dotnet-version: 5.0.x
+       
+    - name: Setup NuGet
+      uses: nuget/setup-nuget@v1
+      with:
+        nuget-version: '5.x'
+     
+    - name: Restore dependencies
+      run: dotnet restore TaskWebAPI.sln
+ 
+    - name: Build and Publish Web App
+      run: |
+        dotnet build TaskWebAPI.sln /p:Configuration=Release
+        dotnet publish TaskWebAPI.sln /p:Configuration=Release /p:PublishProfile=FolderProfile
+ 
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v1.0.0
+      with:
+        name: published_webapp
+        path: ./bin/Release/netcoreapp3.1/publish
